@@ -443,42 +443,25 @@ def allVsAllConflict(planeData):
 
 
 
-# conflict_list = list(conflicts.values())
-
-# #histogram of time of day of the collisions
 
 
-
-# from collections import Counter
-# import datetime
-# import matplotlib.pyplot as plt
-
-# hour_counts = Counter()
-
-# for c in conflict_list:
-#     hour = datetime.datetime.fromtimestamp(c.time0, tz=datetime.timezone.utc).hour
-#     hour_counts[hour] += 1
+# histogram of time of day of the collisions
 
 
-# durations = [c.time1 - c.time0 for c in conflict_list]
+from collections import Counter
+import datetime
 
-# mean_duration = sum(durations) / len(durations)
-# max_duration = max(durations)
+def get_hourly_conflict_counts(conflict_list):
+    hour_counts = Counter()
+    for c in conflict_list:
+        hour = datetime.datetime.fromtimestamp(c.time0, tz=datetime.timezone.utc).hour
+        hour_counts[hour] += 1
 
+    hours = list(range(24))
+    counts = [hour_counts.get(h, 0) for h in hours]
+    
+    return hours, counts
 
-# # Make sure hours 0–23 are included, even if some have 0 counts
-# hours = list(range(24))
-# counts = [hour_counts.get(h, 0) for h in hours]
-
-# plt.figure(figsize=(10,5))
-# plt.plot(hours, counts, marker='o', color='dodgerblue', linewidth=2)
-# plt.xlabel("Hour of Day (UTC)")
-# plt.ylabel("Number of Conflicts")
-# plt.title("Conflicts by Hour of Day")
-# plt.xticks(hours)  # show every hour
-# plt.grid(True, linestyle='--', alpha=0.6)
-# plt.tight_layout()
-# plt.show()
 
 
 # #spatial center points
@@ -491,133 +474,75 @@ def allVsAllConflict(planeData):
 
 
 # #aircraft involvement frequency
-# aircraft_counts = Counter()
+from collections import Counter
 
-# for c in conflict_list:
-#     aircraft_counts[c.ACID1] += 1
-#     aircraft_counts[c.ACID2] += 1
+def get_aircraft_involvement(conflict_list):
+    aircraft_counts = Counter()
+    for c in conflict_list:
+        aircraft_counts[c.ACID1] += 1
+        aircraft_counts[c.ACID2] += 1
+    
+    return aircraft_counts
 
-# # Get the top 10 planes by involvement
-# top_planes = aircraft_counts.most_common(10)
-# planes, counts = zip(*top_planes)  # unzip into two lists
-
-# plt.figure(figsize=(12,6))
-# plt.bar(planes, counts, color='orange')
-# plt.xlabel("Aircraft ID")
-# plt.ylabel("Number of Conflicts Involved")
-# plt.title("Top 10 Aircraft by Conflict Involvement")
-# plt.xticks(rotation=45)  # rotate labels if they are long
-# plt.grid(axis='y', linestyle='--', alpha=0.6)
-# plt.tight_layout()
-# plt.show()
 
 
 # #making bins of conflict severity
-# severity_bins = {
-#     "<1NM": 0,
-#     "1–3NM": 0,
-#     "3–5NM": 0
-# }
+def get_severity_distribution(conflict_list):
+    severity_bins = {
+        "<1NM": 0,
+        "1–3NM": 0,
+        "3–5NM": 0
+    }
+    
+    for c in conflict_list:
+        if c.distance < 1:
+            severity_bins["<1NM"] += 1
+        elif c.distance < 3:
+            severity_bins["1–3NM"] += 1
+        else:
+            severity_bins["3–5NM"] += 1
 
-# for c in conflict_list:
-#     if c.distance < 1:
-#         severity_bins["<1NM"] += 1
-#     elif c.distance < 3:
-#         severity_bins["1–3NM"] += 1
-#     else:
-#         severity_bins["3–5NM"] += 1
+    return severity_bins
 
-
-# # Data for the pie chart
-# labels = list(severity_bins.keys())
-# sizes = list(severity_bins.values())
-
-# plt.figure(figsize=(7,7))
-# plt.pie(
-#     sizes,
-#     labels=labels,
-#     autopct='%1.1f%%',  # show percentage
-#     startangle=90,       # start from the top
-#     colors=['#ff9999','#66b3ff','#99ff99'],  # optional custom colors
-#     explode=(0.05, 0.05, 0.05)  # slightly separate the slices
-# )
-# plt.title("Conflict Severity Distribution")
-# plt.axis('equal')  # Equal aspect ratio ensures the pie is circular
-# plt.show()
+def xy_nm_to_latlon(x, y, sim_origin_lat, sim_origin_lon):
+    lat = sim_origin_lat + y / 60.0
+    lon = sim_origin_lon + x / (60.0 * math.cos(math.radians(sim_origin_lon)))
+    return lat, lon
 
 
-# #converting locations back to latitude and longitude to plot
-# def xy_nm_to_latlon(x, y):
-#     lat = SIM_ORIGIN_LAT + y / 60.0
-#     lon = SIM_ORIGIN_LON + x / (60.0 * math.cos(math.radians(SIM_ORIGIN_LON)))
-#     return lat, lon
+# Convert centers to lat/lon
+def get_spatial_centers(conflict_list):
+    centers = [
+        ((c.posA[0] + c.posB[0]) / 2, (c.posA[1] + c.posB[1]) / 2)
+        for c in conflict_list
+    ]
+    return centers
 
 
-# import cartopy.crs as ccrs
-# import cartopy.feature as cfeature
+def map_conflicts_to_severity_color(conflict_list):
+    severity_colors = {
+        "<1NM": "red",
+        "1–3NM": "orange",
+        "3–5NM": "yellow"
+    }
 
-# plt.tight_layout()
-# plt.figure(figsize=(16,12))
+    colors = []
+    for c in conflict_list:
+        if c.distance < 1:
+            colors.append(severity_colors["<1NM"])
+        elif c.distance < 3:
+            colors.append(severity_colors["1–3NM"])
+        else:
+            colors.append(severity_colors["3–5NM"])
+
+    return colors
+
+def get_conflict_sizes(conflict_list, max_duration):
+    durations = [c.time1 - c.time0 for c in conflict_list]
+    sizes = [20 + 80 * (d / max_duration) for d in durations]  # min 20, max 100
+    return sizes
 
 
-# # Convert centers to lat/lon
-# lats, lons = zip(*[xy_nm_to_latlon(x, y) for x, y in centers])
-
-# # Assign a color for each severity
-# severity_colors = {
-#     "<1NM": "red",
-#     "1–3NM": "orange",
-#     "3–5NM": "yellow"
-# }
-
-# # Create a list of colors corresponding to each conflict
-# colors = []
-# for c in conflict_list:
-#     if c.distance < 1:
-#         colors.append(severity_colors["<1NM"])
-#     elif c.distance < 3:
-#         colors.append(severity_colors["1–3NM"])
-#     else:
-#         colors.append(severity_colors["3–5NM"])
-
-# # Optionally, size points by duration (scaled)
-# #durations = [c.time1 - c.time0 for c in conflict_list]
-# #max_duration = max(durations)
-# sizes = [20 + 80 * (d / max_duration) for d in durations]  # min 20, max 100
-
-# # Determine map extent with a small margin
-# lat_margin = (max(lats) - min(lats)) * 0.1
-# lon_margin = (max(lons) - min(lons)) * 0.1
-# lat_min, lat_max = min(lats) - lat_margin, max(lats) + lat_margin
-# lon_min, lon_max = min(lons) - lon_margin, max(lons) + lon_margin
-
-# # Create map
-# plt.figure(figsize=(12,8))
-# ax = plt.axes(projection=ccrs.PlateCarree())
-# ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
-
-# # Add features
-# ax.add_feature(cfeature.LAND)
-# ax.add_feature(cfeature.OCEAN)
-# ax.add_feature(cfeature.COASTLINE)
-# ax.add_feature(cfeature.BORDERS, linestyle=':')
-# ax.add_feature(cfeature.LAKES, alpha=0.5)
-# ax.add_feature(cfeature.RIVERS)
-
-# ax.set_aspect(1.0 / math.cos(math.radians((lat_min + lat_max)/2)))
-
-# # Plot conflicts
-# scatter = ax.scatter(lons, lats, c=colors, s=sizes, alpha=0.7, transform=ccrs.PlateCarree())
-
-# # Add legend for severity
-# from matplotlib.lines import Line2D
-# legend_elements = [Line2D([0], [0], marker='o', color='w', label=key,
-#                           markerfacecolor=val, markersize=10)
-#                    for key, val in severity_colors.items()]
-# ax.legend(handles=legend_elements, title="Conflict Severity")
-
-# plt.title("Conflict Locations Map with Severity and Duration")
-# plt.show()
 
 """## **Hot Spot**"""
 
