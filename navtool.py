@@ -1138,7 +1138,18 @@ def print_final_schedule(planeData):
         print(f"{acid:8} {dep:5} {arr:5} {int(t):12} {int(alt):8} {float(spd):8.1f} {int(pax):5} {str(cargo):6}")
 # actions = resolve_conflicts_incremental(planeData)
 
+def final_schedule(planeData):
+    rows = []
+    for acid, p in planeData.items():
+        rows.append((acid, p.departureAirport, p.arrivalAirport, p.departureTime, p.altitude, p.aircraftSpeed, p.passengers, p.isCargo))
+    rows.sort(key=lambda r: r[3])  # sort by departureTime
 
+    print(f"{'ACID':8} {'DEP':5} {'ARR':5} {'DEP_TIME':12} {'ALT(ft)':8} {'SPD(kts)':8} {'PAX':5} {'CARGO':6}")
+    for r in rows:
+        acid, dep, arr, t, alt, spd, pax, cargo = r
+        print(f"{acid:8} {dep:5} {arr:5} {int(t):12} {int(alt):8} {float(spd):8.1f} {int(pax):5} {str(cargo):6}")
+
+    return rows
 # Flask API
 app = Flask(__name__)
 CORS(app)  # Allows frontend to connect
@@ -1185,12 +1196,13 @@ def analyze_flights():
     
     #working solution
     # After solver, verify:
+    actions = resolve_conflicts_incremental(planeData)
+    print("actions:", len(actions))
+    # # After solver, verify:
     final_conflicts = allVsAllConflict(planeData)
     print("final conflicts:", len(final_conflicts))
-    
-    actions = resolve_conflicts_incremental(planeData)
-    final_conflicts = allVsAllConflict(planeData)
 
+    rows = final_schedule(planeData)
     # Return results as JSON
     return jsonify({
         "summary": {
