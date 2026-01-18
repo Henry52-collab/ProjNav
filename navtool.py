@@ -462,6 +462,12 @@ def get_hourly_conflict_counts(conflict_list):
     
     return hours, counts
 
+def get_conflict_durations(conflict_list):
+    durations = [c.time1 - c.time0 for c in conflict_list]
+    mean_duration = sum(durations) / len(durations)
+    max_duration = max(durations)
+    
+    return mean_duration, max_duration
 
 
 # #spatial center points
@@ -484,6 +490,10 @@ def get_aircraft_involvement(conflict_list):
     
     return aircraft_counts
 
+def get_top_aircraft_by_involvement(aircraft_counts):
+    top_aircraft = aircraft_counts.most_common(10)
+    planes, counts = zip(*top_aircraft)
+    return planes, counts
 
 
 # #making bins of conflict severity
@@ -1118,6 +1128,15 @@ def analyze_flights():
     events = build_events(raw_flights, bin_seconds=900)
     metrics = compute_metrics(events)
     scored = add_pressure_and_hotspots(metrics)
+
+    #insights
+    conflictList=list(conflicts.values())
+    hours, count=get_hourly_conflict_counts(conflictList)
+    meanDuration, maxDuration=get_conflict_durations(conflictList)
+    centers=get_spatial_centers(conflictList)
+    airCraftCounts=get_aircraft_involvement(conflictList)
+    planes, counts=get_top_aircraft_by_involvement(airCraftCounts)
+    severity_bins=get_severity_distribution(conflictList)
     
     #working solution
     # After solver, verify:
@@ -1135,6 +1154,21 @@ def analyze_flights():
             "total_conflicts": len(conflicts),
             "total_hotspots": int(scored["hotspot"].sum()),
             # etc.
+        },
+        #insights
+        "insights": {
+            "hourly_conflict_counts": {
+                "hours": hours,
+                "counts": count
+            },
+            "mean_duration": meanDuration,
+            "max_duration": maxDuration,
+            "spatial_centers": centers,
+            "aircraft_involvement": {
+                "aircraft": planes,
+                "conflict_counts": counts
+            },
+            "severity_distribution": severity_bins
         },
         # "charts": { ... },
         "tables": { "hotspots": scored.to_json(orient="records") }
